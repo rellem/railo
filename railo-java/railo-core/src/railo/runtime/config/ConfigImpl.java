@@ -116,7 +116,6 @@ import railo.runtime.type.dt.TimeSpanImpl;
 import railo.runtime.type.scope.Cluster;
 import railo.runtime.type.scope.ClusterNotSupported;
 import railo.runtime.type.scope.Undefined;
-import railo.runtime.type.util.ArrayUtil;
 import railo.runtime.type.util.KeyConstants;
 import railo.runtime.video.VideoExecuterNotSupported;
 import railo.transformer.library.function.FunctionLib;
@@ -258,7 +257,7 @@ public abstract class ConfigImpl implements Config {
 
     private Map<String,String> errorTemplates=new HashMap<String,String>();
 
-    private String password;
+    protected Password password;
 
     private Mapping[] mappings=new Mapping[0];
     private Mapping[] customTagMappings=new Mapping[0];
@@ -351,7 +350,7 @@ public abstract class ConfigImpl implements Config {
 	private ExtensionProvider[] extensionProviders=RAILO_EXTENSION_PROVIDERS;
 	private Extension[] extensions=EXTENSIONS_EMPTY;
 	private boolean extensionEnabled;
-	private boolean allowRealPath=true;
+	private boolean allowRelPath=true;
 
 	private DumpWriterEntry[] dmpWriterEntries;
 	private Class clusterClass=ClusterNotSupported.class;//ClusterRemoteNotSupported.class;//
@@ -707,30 +706,23 @@ public abstract class ConfigImpl implements Config {
     /**
      * @return gets the password as hash
      */
-    protected String getPassword() {
+    protected Password getPassword() {
         return password;
     }
     
-    protected boolean isPasswordEqual(String password, boolean hashIfNecessary) {
-    	if(this.password.equals(password)) return true;
-    	if(!hashIfNecessary) return false;
-    	try {
-    		return this.password.equals(ConfigWebFactory.hash(password));
-		}
-		catch (IOException e) {
-			e.printStackTrace();
-			return false;
-		}
+    public Password isPasswordEqual(String password, boolean hashIfNecessary) {
+    	if(this.password==null) return null;
+    	return this.password.isEqual(this,password, hashIfNecessary);
     }
     
     @Override
     public boolean hasPassword() {
-        return !StringUtil.isEmpty(password);
+        return password!=null;
     }
     
     @Override
     public boolean passwordEqual(String password) {
-        return isPasswordEqual(password,true);
+        return isPasswordEqual(password,true)!=null;
     }
 
     @Override
@@ -760,22 +752,22 @@ public abstract class ConfigImpl implements Config {
     }
 
 
-    public PageSource getPageSource(Mapping[] mappings, String realPath,boolean onlyTopLevel) {
+    public PageSource getPageSource(Mapping[] mappings, String relPath,boolean onlyTopLevel) {
     	throw new PageRuntimeException(new DeprecatedException("method not supported"));
     }
     
-    public PageSource getPageSourceExisting(PageContext pc,Mapping[] mappings, String realPath,boolean onlyTopLevel,boolean useSpecialMappings, boolean useDefaultMapping, boolean onlyPhysicalExisting) {
-        realPath=realPath.replace('\\','/');
-        String lcRealPath = StringUtil.toLowerCase(realPath)+'/';
+    public PageSource getPageSourceExisting(PageContext pc,Mapping[] mappings, String relPath,boolean onlyTopLevel,boolean useSpecialMappings, boolean useDefaultMapping, boolean onlyPhysicalExisting) {
+        relPath=relPath.replace('\\','/');
+        String lcRelPath = StringUtil.toLowerCase(relPath)+'/';
         Mapping mapping;
         PageSource ps;
 
         if(mappings!=null){
 	        for(int i=0;i<mappings.length;i++) {
 	            mapping = mappings[i];
-	            //print.err(lcRealPath+".startsWith"+(mapping.getStrPhysical()));
-	            if(lcRealPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
-	            	ps= mapping.getPageSource(realPath.substring(mapping.getVirtual().length()));
+	            //print.err(lcRelPath+".startsWith"+(mapping.getStrPhysical()));
+	            if(lcRelPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
+	            	ps= mapping.getPageSource(relPath.substring(mapping.getVirtual().length()));
 	            	if(onlyPhysicalExisting) {
 	            		if(ps.physcalExists())return ps;
 	            	}
@@ -785,15 +777,15 @@ public abstract class ConfigImpl implements Config {
         }
         
         /// special mappings
-        if(useSpecialMappings && lcRealPath.startsWith("/mapping-",0)){
+        if(useSpecialMappings && lcRelPath.startsWith("/mapping-",0)){
         	String virtual="/mapping-tag";
         	// tag mappings
         	Mapping[] tagMappings=(this instanceof ConfigWebImpl)?new Mapping[]{((ConfigWebImpl)this).getServerTagMapping(),getTagMapping()}:new Mapping[]{getTagMapping()};
-        	if(lcRealPath.startsWith(virtual,0)){
+        	if(lcRelPath.startsWith(virtual,0)){
 	        	for(int i=0;i<tagMappings.length;i++) {
 		            mapping = tagMappings[i];
-		            //if(lcRealPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
-		            	ps = mapping.getPageSource(realPath.substring(virtual.length()));
+		            //if(lcRelPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
+		            	ps = mapping.getPageSource(relPath.substring(virtual.length()));
 		            	if(onlyPhysicalExisting) {
 		            		if(ps.physcalExists())return ps;
 		            	}
@@ -805,11 +797,11 @@ public abstract class ConfigImpl implements Config {
         	// customtag mappings
         	tagMappings=getCustomTagMappings();
         	virtual="/mapping-customtag";
-        	if(lcRealPath.startsWith(virtual,0)){
+        	if(lcRelPath.startsWith(virtual,0)){
 	        	for(int i=0;i<tagMappings.length;i++) {
 		            mapping = tagMappings[i];
-		            //if(lcRealPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
-		            	ps = mapping.getPageSource(realPath.substring(virtual.length()));
+		            //if(lcRelPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
+		            	ps = mapping.getPageSource(relPath.substring(virtual.length()));
 		            	if(onlyPhysicalExisting) {
 		            		if(ps.physcalExists())return ps;
 		            	}
@@ -821,11 +813,11 @@ public abstract class ConfigImpl implements Config {
         
         // component mappings (only used for gateway)
         if(pc!=null && ((PageContextImpl)pc).isGatewayContext()) {
-        	boolean isCFC=getCFCExtension().equalsIgnoreCase(ResourceUtil.getExtension(realPath, null));
+        	boolean isCFC=getCFCExtension().equalsIgnoreCase(ResourceUtil.getExtension(relPath, null));
             if(isCFC) {
 	        	Mapping[] cmappings = getComponentMappings();
 	        	for(int i=0;i<cmappings.length;i++) {
-	        		ps = cmappings[i].getPageSource(realPath);
+	        		ps = cmappings[i].getPageSource(relPath);
 	            	if(onlyPhysicalExisting) {
 	            		if(ps.physcalExists())return ps;
 	            	}
@@ -837,8 +829,8 @@ public abstract class ConfigImpl implements Config {
         // config mappings
         for(int i=0;i<this.mappings.length-1;i++) {
             mapping = this.mappings[i];
-            if((!onlyTopLevel || mapping.isTopLevel()) && lcRealPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
-            	ps= mapping.getPageSource(realPath.substring(mapping.getVirtual().length()));
+            if((!onlyTopLevel || mapping.isTopLevel()) && lcRelPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
+            	ps= mapping.getPageSource(relPath.substring(mapping.getVirtual().length()));
             	if(onlyPhysicalExisting) {
             		if(ps.physcalExists())return ps;
             	}
@@ -847,7 +839,7 @@ public abstract class ConfigImpl implements Config {
         }
         
         if(useDefaultMapping){
-        	ps= this.mappings[this.mappings.length-1].getPageSource(realPath);
+        	ps= this.mappings[this.mappings.length-1].getPageSource(relPath);
         	if(onlyPhysicalExisting) {
         		if(ps.physcalExists())return ps;
         	}
@@ -856,13 +848,13 @@ public abstract class ConfigImpl implements Config {
         return null;
     }
     
-    public PageSource[] getPageSources(PageContext pc,Mapping[] mappings, String realPath,boolean onlyTopLevel,boolean useSpecialMappings, boolean useDefaultMapping) {
-    	return getPageSources(pc, mappings, realPath, onlyTopLevel, useSpecialMappings, useDefaultMapping, false);
+    public PageSource[] getPageSources(PageContext pc,Mapping[] mappings, String relPath,boolean onlyTopLevel,boolean useSpecialMappings, boolean useDefaultMapping) {
+    	return getPageSources(pc, mappings, relPath, onlyTopLevel, useSpecialMappings, useDefaultMapping, false);
     }
     
-    public PageSource[] getPageSources(PageContext pc,Mapping[] mappings, String realPath,boolean onlyTopLevel,boolean useSpecialMappings, boolean useDefaultMapping, boolean useComponentMappings) {
-        realPath=realPath.replace('\\','/');
-        String lcRealPath = StringUtil.toLowerCase(realPath)+'/';
+    public PageSource[] getPageSources(PageContext pc,Mapping[] mappings, String relPath,boolean onlyTopLevel,boolean useSpecialMappings, boolean useDefaultMapping, boolean useComponentMappings) {
+        relPath=relPath.replace('\\','/');
+        String lcRelPath = StringUtil.toLowerCase(relPath)+'/';
         Mapping mapping;
 
         PageSource ps;
@@ -871,21 +863,21 @@ public abstract class ConfigImpl implements Config {
         if(mappings!=null){
 	        for(int i=0;i<mappings.length;i++) {
 	            mapping = mappings[i];
-	            //print.err(lcRealPath+".startsWith"+(mapping.getStrPhysical()));
-	            if(lcRealPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
-	            	list.add(mapping.getPageSource(realPath.substring(mapping.getVirtual().length())));
+	            //print.err(lcRelPath+".startsWith"+(mapping.getStrPhysical()));
+	            if(lcRelPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
+	            	list.add(mapping.getPageSource(relPath.substring(mapping.getVirtual().length())));
 	            }
 	        }
         }
         
         /// special mappings
-        if(useSpecialMappings && lcRealPath.startsWith("/mapping-",0)){
+        if(useSpecialMappings && lcRelPath.startsWith("/mapping-",0)){
         	String virtual="/mapping-tag";
         	// tag mappings
         	Mapping[] tagMappings=(this instanceof ConfigWebImpl)?new Mapping[]{((ConfigWebImpl)this).getServerTagMapping(),getTagMapping()}:new Mapping[]{getTagMapping()};
-        	if(lcRealPath.startsWith(virtual,0)){
+        	if(lcRelPath.startsWith(virtual,0)){
 	        	for(int i=0;i<tagMappings.length;i++) {
-		            ps=tagMappings[i].getPageSource(realPath.substring(virtual.length()));
+		            ps=tagMappings[i].getPageSource(relPath.substring(virtual.length()));
 		            if(ps.exists()) list.add(ps);
 		        }
         	}
@@ -893,9 +885,9 @@ public abstract class ConfigImpl implements Config {
         	// customtag mappings
         	tagMappings=getCustomTagMappings();
         	virtual="/mapping-customtag";
-        	if(lcRealPath.startsWith(virtual,0)){
+        	if(lcRelPath.startsWith(virtual,0)){
 	        	for(int i=0;i<tagMappings.length;i++) {
-		            ps=tagMappings[i].getPageSource(realPath.substring(virtual.length()));
+		            ps=tagMappings[i].getPageSource(relPath.substring(virtual.length()));
 		            if(ps.exists()) list.add(ps);
 		        }
         	}
@@ -903,11 +895,11 @@ public abstract class ConfigImpl implements Config {
         
         // component mappings (only used for gateway)
         if(useComponentMappings || (pc!=null && ((PageContextImpl)pc).isGatewayContext())) {
-        	boolean isCFC=getCFCExtension().equalsIgnoreCase(ResourceUtil.getExtension(realPath, null));
+        	boolean isCFC=getCFCExtension().equalsIgnoreCase(ResourceUtil.getExtension(relPath, null));
             if(isCFC) {
 	        	Mapping[] cmappings = getComponentMappings();
 	        	for(int i=0;i<cmappings.length;i++) {
-	        		ps=cmappings[i].getPageSource(realPath);
+	        		ps=cmappings[i].getPageSource(relPath);
 	        		if(ps.exists()) list.add(ps);
 	            }
         	}
@@ -916,34 +908,34 @@ public abstract class ConfigImpl implements Config {
         // config mappings
         for(int i=0;i<this.mappings.length-1;i++) {
             mapping = this.mappings[i];
-            if((!onlyTopLevel || mapping.isTopLevel()) && lcRealPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
-            	list.add(mapping.getPageSource(realPath.substring(mapping.getVirtual().length())));
+            if((!onlyTopLevel || mapping.isTopLevel()) && lcRelPath.startsWith(mapping.getVirtualLowerCaseWithSlash(),0)) {
+            	list.add(mapping.getPageSource(relPath.substring(mapping.getVirtual().length())));
             }
         }
         
         if(useDefaultMapping){
-        	list.add(this.mappings[this.mappings.length-1].getPageSource(realPath));
+        	list.add(this.mappings[this.mappings.length-1].getPageSource(relPath));
         }
         return list.toArray(new PageSource[list.size()]); 
     }
     
     /**
      * @param mappings
-     * @param realPath
+     * @param relPath
      * @param alsoDefaultMapping ignore default mapping (/) or not
      * @return physical path from mapping
      */
-    public Resource getPhysical(Mapping[] mappings, String realPath, boolean alsoDefaultMapping) {
+    public Resource getPhysical(Mapping[] mappings, String relPath, boolean alsoDefaultMapping) {
     	throw new PageRuntimeException(new DeprecatedException("method not supported"));
     }
 
-    public Resource[] getPhysicalResources(PageContext pc,Mapping[] mappings, String realPath,boolean onlyTopLevel,boolean useSpecialMappings, boolean useDefaultMapping) {
+    public Resource[] getPhysicalResources(PageContext pc,Mapping[] mappings, String relPath,boolean onlyTopLevel,boolean useSpecialMappings, boolean useDefaultMapping) {
     	// now that archives can be used the same way as physical resources, there is no need anymore to limit to that
     	throw new PageRuntimeException(new DeprecatedException("method not supported"));
     }
     
 
-    public Resource getPhysicalResourceExisting(PageContext pc,Mapping[] mappings, String realPath,boolean onlyTopLevel,boolean useSpecialMappings, boolean useDefaultMapping) {
+    public Resource getPhysicalResourceExisting(PageContext pc,Mapping[] mappings, String relPath,boolean onlyTopLevel,boolean useSpecialMappings, boolean useDefaultMapping) {
     	// now that archives can be used the same way as physical resources, there is no need anymore to limit to that
     	throw new PageRuntimeException(new DeprecatedException("method not supported"));
     }
@@ -1002,17 +994,17 @@ public abstract class ConfigImpl implements Config {
         if(rootMapping.hasPhysical() && 
         		res.getResourceProvider().getScheme().equals((root=rootMapping.getPhysical()).getResourceProvider().getScheme())) {
 	        
-        	String realpath="";
+        	String relpath="";
         	while(root!=null && !ResourceUtil.isChildOf(res, root)){
         		root=root.getParentResource();
-        		realpath+="../";
+        		relpath+="../";
         	}
         	String p2c=ResourceUtil.getPathToChild(res,root);
         	if(StringUtil.startsWith(p2c, '/') || StringUtil.startsWith(p2c, '\\') )
         		p2c=p2c.substring(1);
-        	realpath+=p2c;
+        	relpath+=p2c;
         	
-        	return rootMapping.getPageSource(realpath);
+        	return rootMapping.getPageSource(relpath);
 	        
         }
         // MUST better impl than this
@@ -1056,7 +1048,7 @@ public abstract class ConfigImpl implements Config {
      * sets the password
      * @param password
      */
-    protected void setPassword(String password) {
+    protected void setPassword(Password password) {
         this.password=password;
     }
 
@@ -2599,12 +2591,13 @@ public abstract class ConfigImpl implements Config {
 		return extensionEnabled;
 	}
 
+	@Override
 	public boolean allowRealPath() {
-		return allowRealPath;
+		return allowRelPath;
 	}
 
-	protected void setAllowRealPath(boolean allowRealPath) {
-		this.allowRealPath=allowRealPath;
+	protected void setAllowRealPath(boolean allowRelPath) {
+		this.allowRelPath=allowRelPath;
 	}
 
 	/**
@@ -3236,6 +3229,9 @@ public abstract class ConfigImpl implements Config {
 	private int externalizeStringGTE=-1;
 
 
+	private String salt;
+
+
 	
 
 
@@ -3272,6 +3268,7 @@ public abstract class ConfigImpl implements Config {
     public abstract int getLoginDelay();
 
     public abstract boolean getLoginCaptcha();
+    public abstract boolean getRememberMe();
 
     public abstract boolean getFullNullSupport();
 
@@ -3384,15 +3381,33 @@ public abstract class ConfigImpl implements Config {
 		map.put(KeyImpl.init("include"), inc);
 		map.put(KeyImpl.init("query"), qry);
 
-		func.put(KeyImpl.init("cachedWithin"), "smart");
-		inc.put(KeyImpl.init("cachedWithin"), "smart");
-		qry.put(KeyImpl.init("cachedWithin"), "smart");
-		
 		return  map;*/
 	}
 	
 	protected void setTagDefaultAttributeValues(Map<Key, Map<Key, Object>> values) {
 		this.tagDefaultAttributeValues=values;
+	}
+
+	protected void setSalt(String salt) {
+		this.salt=salt;
+	}
+
+	public String getSalt() {
+		return this.salt;
+	}
+
+	public int getPasswordType() {
+		if(password==null) return Password.HASHED_SALTED;// when there is no password, we will have a HS password
+		return password.type;
+	}
+	public String getPasswordSalt() {
+		if(password==null || password.salt==null) return this.salt;
+		return password.salt;
+	}
+	
+	public int getPasswordOrigin() {
+		if(password==null) return Password.ORIGIN_UNKNOW;
+		return password.origin;
 	}
 
 	

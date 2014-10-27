@@ -60,7 +60,7 @@ public final class ConfigServerImpl extends ConfigImpl implements ConfigServer {
     //private Map contextes;
     private SecurityManager defaultSecurityManager;
     private Map<String,SecurityManager> managers=MapFactory.<String,SecurityManager>getConcurrentMap();
-    private String defaultPassword;
+    Password defaultPassword;
     private Resource rootDir;
     private URL updateLocation;
     private String updateType="";
@@ -73,6 +73,7 @@ public final class ConfigServerImpl extends ConfigImpl implements ConfigServer {
 	private boolean monitoringEnabled=false;
 	private int delay=1;
 	private boolean captcha=false;
+	private boolean rememberMe=true;
 	private static ConfigServerImpl instance;
 
 	private String[] authKeys;
@@ -130,20 +131,20 @@ public final class ConfigServerImpl extends ConfigImpl implements ConfigServer {
     }
     
     @Override
-    public ConfigWeb getConfigWeb(String realpath) {
-        return getConfigWebImpl(realpath);
+    public ConfigWeb getConfigWeb(String relpath) {
+        return getConfigWebImpl(relpath);
     }
     
     /**
      * returns CongigWeb Implementtion
-     * @param realpath
+     * @param relpath
      * @return ConfigWebImpl
      */
-    protected ConfigWebImpl getConfigWebImpl(String realpath) {
+    protected ConfigWebImpl getConfigWebImpl(String relpath) {
     	Iterator<String> it = initContextes.keySet().iterator();
         while(it.hasNext()) {
             ConfigWebImpl cw=((CFMLFactoryImpl)initContextes.get(it.next())).getConfigWebImpl();
-            if(ReqRspUtil.getRootPath(cw.getServletContext()).equals(realpath))
+            if(ReqRspUtil.getRootPath(cw.getServletContext()).equals(relpath))
                 return cw;
         }
         return null;
@@ -228,7 +229,7 @@ public final class ConfigServerImpl extends ConfigImpl implements ConfigServer {
     /**
      * @return Returns the defaultPassword.
      */
-    protected String getDefaultPassword() {
+    protected Password getDefaultPassword() {
         return defaultPassword;
     }
     
@@ -236,7 +237,7 @@ public final class ConfigServerImpl extends ConfigImpl implements ConfigServer {
     /**
      * @param defaultPassword The defaultPassword to set.
      */
-    protected void setDefaultPassword(String defaultPassword) {
+    protected void setDefaultPassword(Password defaultPassword) {
         this.defaultPassword = defaultPassword;
     }
 
@@ -381,7 +382,12 @@ public final class ConfigServerImpl extends ConfigImpl implements ConfigServer {
 	protected void setLoginCaptcha(boolean captcha) {
 		this.captcha=captcha;
 	}
+	protected void setRememberMe(boolean rememberMe) {
+		this.rememberMe=rememberMe;
+	}
 
+	
+	
 	@Override
 	public int getLoginDelay() {
 		return delay;
@@ -390,6 +396,11 @@ public final class ConfigServerImpl extends ConfigImpl implements ConfigServer {
 	@Override
 	public boolean getLoginCaptcha() {
 		return captcha;
+	}
+
+	@Override
+	public boolean getRememberMe() {
+		return rememberMe;
 	}
 
     public void reset() {

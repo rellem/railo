@@ -1,5 +1,10 @@
 package railo.runtime.type.comparator;
 
+import java.util.Comparator;
+
+import railo.commons.lang.ComparatorUtil;
+import railo.runtime.PageContext;
+import railo.runtime.engine.ThreadLocalPageContext;
 import railo.runtime.exp.PageException;
 import railo.runtime.op.Caster;
 
@@ -12,6 +17,7 @@ public final class SortRegisterComparator implements ExceptionComparator {
 	private boolean isAsc;
 	private PageException pageException=null;
     private boolean ignoreCase;
+	private final Comparator comparator;
 
 
 	/**
@@ -19,9 +25,13 @@ public final class SortRegisterComparator implements ExceptionComparator {
 	 * @param isAsc is ascending or descending
 	 * @param ignoreCase do ignore case 
 	 */
-	public SortRegisterComparator(boolean isAsc, boolean ignoreCase) {
+	public SortRegisterComparator(PageContext pc,boolean isAsc, boolean ignoreCase, boolean localeSensitive) {
 	    this.isAsc=isAsc;
 	    this.ignoreCase=ignoreCase;
+	    
+	    comparator = ComparatorUtil.toComparator(
+	    		ignoreCase?ComparatorUtil.SORT_TYPE_TEXT_NO_CASE:ComparatorUtil.SORT_TYPE_TEXT
+	    		, isAsc, localeSensitive?ThreadLocalPageContext.getLocale(pc):null, null);
 		
 	}
 	
@@ -47,8 +57,7 @@ public final class SortRegisterComparator implements ExceptionComparator {
 	private int compareObjects(Object oLeft, Object oRight) throws PageException {
 		String strLeft=Caster.toString(((SortRegister)oLeft).getValue());
 		String strRight=Caster.toString(((SortRegister)oRight).getValue());
-		if(ignoreCase) return strLeft.compareToIgnoreCase(strRight);
-		return strLeft.compareTo(strRight);
+		return comparator.compare(strLeft, strRight);
 	}
 
 }

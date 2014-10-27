@@ -503,13 +503,9 @@ public abstract class AbstrCFMLScriptTransformer extends AbstrCFMLExprTransforme
 			data.cfml.previous();
 		}
 		
-		//if(!data.cfml.forwardIfCurrent("do",'{') && !data.cfml.forwardIfCurrent("do ") && !data.cfml.forwardIfCurrent("do",'/'))
-		//	return null;
-		
 		Position line = data.cfml.getPosition();
 		Body body=new BodyBase();
 		
-		//data.cfml.previous();
 		statement(data,body,CTX_DO_WHILE);
 		
 		
@@ -1221,15 +1217,11 @@ int pos=data.cfml.getPos();
 			if(attr.getValue().equals(NULL)){
 				// type
 				if(first==null && (!hasName || !hasType)){
-					first=attr.getName();
-					//type=new Attribute(false,"type",LitString.toExprString(attr.getName()),"string");
-					//property.addAttribute(type);
+					first=attr.getNameOC();
 				}
 				// name
 				else if(second==null && !hasName && !hasType){
-					second=attr.getName();
-					//name=new Attribute(false,"name",LitString.toExprString(attr.getName()),"string");
-					//property.addAttribute(name);
+					second=attr.getNameOC();
 				}
 				// attr with no value
 				else {
@@ -1293,17 +1285,59 @@ int pos=data.cfml.getPos();
 		
 		// type
 		boolean hasType=false;
+		boolean hasName=false;
 		int pos = data.cfml.getPos();
+		
+		
+		// first 2 arguments can be type/name directly 
 		String tmp=variableDec(data, true);
+		do {
 		if(!StringUtil.isEmpty(tmp)) {
-			if(tmp.indexOf('.')!=-1) {
-				param.addAttribute(new Attribute(false,"type",LitString.toExprString(tmp),"string"));
-				hasType=true;
+			TagLibTagAttr attr = tlt.getAttribute(tmp.toLowerCase(),true);
+			// name is not a defined attribute 
+			
+		    if(attr==null) {
+		    	comments(data);
+		    	// it could be a name followed by default value
+		    	if(data.cfml.forwardIfCurrent('='))	{
+		    		comments(data);
+		    		Expression v=attributeValue(data,true);	
+		    		param.addAttribute(new Attribute(false,"name",LitString.toExprString(tmp),"string"));
+		    		param.addAttribute(new Attribute(false,"default",v,"string"));
+					hasName=true;
+					break; // if we had a value this was already name
+		    	}
+		    	// can be type or name
+		    	int pos2 = data.cfml.getPos();
+				
+				// first could be type, followed by name
+		    	comments(data);
+				String tmp2=variableDec(data, true);
+		    	
+				if(!StringUtil.isEmpty(tmp2)) {
+					attr = tlt.getAttribute(tmp2.toLowerCase(),true);
+					if(attr==null) {
+						param.addAttribute(new Attribute(false,"name",LitString.toExprString(tmp2),"string"));
+						param.addAttribute(new Attribute(false,"type",LitString.toExprString(tmp),"string"));
+						
+						if(data.cfml.forwardIfCurrent('='))	{
+							Expression v=attributeValue(data,true);	
+							param.addAttribute(new Attribute(false,"default",v,"string"));
+						}
+						
+						hasName=true;
+						hasType=true;
+						break;
+					}
+				}
+				param.addAttribute(new Attribute(false,"name",LitString.toExprString(tmp),"string"));
+				data.cfml.setPos(pos2);
+				hasName=true;
 			}
 			else data.cfml.setPos(pos);
 		}
 		else data.cfml.setPos(pos);
-		
+		}while(false);
 		
 		
 		// folgend wird tlt extra nicht uebergeben, sonst findet pruefung statt
@@ -1318,7 +1352,6 @@ int pos=data.cfml.getPos();
 		
 		// first fill all regular attribute -> name="value"
 		boolean hasDynamic=false;
-		boolean hasName=false;
 		for(int i=attrs.length-1;i>=0;i--){
 			attr=attrs[i];
 			if(!attr.getValue().equals(NULL)){
@@ -1383,9 +1416,9 @@ int pos=data.cfml.getPos();
 		//if(!hasType)
 		//	param.addAttribute(ANY);
 		
-		if(!hasName)
+		if(!hasName) {
 			throw new TemplateException(data.cfml,"missing name declaration for param");
-
+		}
 		param.setEnd(data.cfml.getPosition());
 		return param;
 	}
@@ -1408,7 +1441,7 @@ int pos=data.cfml.getPos();
 		String id=identifier(data, firstCanBeNumber);
 		if(id==null) return null;
 		
-		StringBuffer rtn=new StringBuffer(id);
+		StringBuilder rtn=new StringBuilder(id);
 		data.cfml.removeSpace();
 		
 		while(data.cfml.forwardIfCurrent('.')){
@@ -1424,6 +1457,10 @@ int pos=data.cfml.getPos();
 			data.cfml.removeSpace();
 			rtn.append("[]");
 		}
+		
+		data.cfml.revertRemoveSpace();
+		
+		
 		return rtn.toString();
 	}
 	
@@ -1820,8 +1857,8 @@ int pos=data.cfml.getPos();
 	
 	
 	
-	private final Attribute[] attributes(Tag tag,TagLibTag tlt, ExprData data, EndCondition endCond,Expression defaultValue,Object oAllowExpression, 
-			String ignoreAttrReqFor, boolean allowTwiceAttr, char attributeSeparator,boolean allowColonAsNameValueSeparator) throws TemplateException {
+	private final Attribute[] attributes(Tag tag,TagLibTag tlt, ExprData data, EndCondition endCond,Expression defaultValue,
+			Object oAllowExpression, String ignoreAttrReqFor, boolean allowTwiceAttr, char attributeSeparator,boolean allowColonAsNameValueSeparator) throws TemplateException {
 		ArrayList<Attribute> attrs=new ArrayList<Attribute>();
 		ArrayList<String> ids=new ArrayList<String>();
 		while(data.cfml.isValidIndex())	{
@@ -1887,100 +1924,66 @@ int pos=data.cfml.getPos();
     	
 		// Name
     	String name=attributeName(data.cfml,args,tlt,dynamic,sbType, allowTwiceAttr,!allowColonSeparator);
+    	String nameLC=name==null?null:name.toLowerCase();
     	boolean allowExpression=false;
     	if(oAllowExpression instanceof Boolean)allowExpression=((Boolean)oAllowExpression).booleanValue();
     	else if(oAllowExpression instanceof String)allowExpression=((String)oAllowExpression).equalsIgnoreCase(name);
 
           Expression value=null;
-    	
-    	CFMLTransformer.comment(data.cfml,true);
+    	comments(data);
     	
     	// value
     	boolean b=data.cfml.forwardIfCurrent('=') || (allowColonSeparator && data.cfml.forwardIfCurrent(':'));
     	if(b)	{
-    		CFMLTransformer.comment(data.cfml,true);
+    		comments(data);
     		value=attributeValue(data,allowExpression);	
     		
     	}
     	else {
     		value=defaultValue;
     	}		
-    	CFMLTransformer.comment(data.cfml,true);
+    	comments(data);
     	
     	
     	// Type
     	TagLibTagAttr tlta=null;
 		if(tlt!=null){
-			tlta = tlt.getAttribute(name,true);
-			if(tlta!=null && tlta.getName()!=null)name=tlta.getName();
+			tlta = tlt.getAttribute(nameLC,true);
+			if(tlta!=null && tlta.getName()!=null)nameLC=tlta.getName();
 		}
 		return new Attribute(dynamic.toBooleanValue(),name,tlta!=null?CastOther.toExpression(value, tlta.getType()):value,sbType.toString());
     }
 	
-	/*private String attributeName(CFMLString cfml, ArrayList<String> args,TagLibTag tag, RefBoolean dynamic, StringBuffer sbType) throws TemplateException {
-		String id=StringUtil.toLowerCase(CFMLTransformer.identifier(cfml,true));
-        if(args.contains(id)) throw new TemplateException(cfml,"you can't use the same attribute ["+id+"] twice");
-		args.add(id);
-		
-		
-		
-		int typeDef=tag.getAttributeType();
-		if("attributecollection".equals(id)){
-			dynamic.setValue(tag.getAttribute(id)==null);
-			sbType.append("struct");
-		}
-		else if(typeDef==TagLibTag.ATTRIBUTE_TYPE_FIXED || typeDef==TagLibTag.ATTRIBUTE_TYPE_MIXED) {
-			TagLibTagAttr attr=tag.getAttribute(id);
-			if(attr==null) {
-				if(typeDef==TagLibTag.ATTRIBUTE_TYPE_FIXED) {
-					String names=tag.getAttributeNames();
-					if(StringUtil.isEmpty(names))
-						throw new TemplateException(cfml,"Attribute "+id+" is not allowed for tag "+tag.getFullName());
-					
-						throw new TemplateException(cfml,
-							"Attribute "+id+" is not allowed for statement "+tag.getName(),
-							"valid attribute names are ["+names+"]");
-				}
-			}
-			else {
-				sbType.append(attr.getType());
-				//parseExpression[0]=attr.getRtexpr();
-			}
-		}
-		else if(typeDef==TagLibTag.ATTRIBUTE_TYPE_DYNAMIC){
-			dynamic.setValue(true);
-		}
-		return id;
-	}*/
-	
 	private final String attributeName(CFMLString cfml, ArrayList<String> args,TagLibTag tag, RefBoolean dynamic, StringBuffer sbType, boolean allowTwiceAttr, boolean allowColon) throws TemplateException {
-		String id=StringUtil.toLowerCase(CFMLTransformer.identifier(cfml,true,allowColon));
+		String id=CFMLTransformer.identifier(cfml,true,allowColon);
 		return validateAttributeName(id, cfml, args, tag, dynamic, sbType,allowTwiceAttr);
 	}
 	
 	
 	
-	private final String validateAttributeName(String id,CFMLString cfml, ArrayList<String> args,TagLibTag tag, RefBoolean dynamic, StringBuffer sbType, boolean allowTwiceAttr) throws TemplateException {
-		if(args.contains(id) && !allowTwiceAttr) throw new TemplateException(cfml,"you can't use the same attribute ["+id+"] twice");
-		args.add(id);
+	private final String validateAttributeName(String idOC,CFMLString cfml, ArrayList<String> args,TagLibTag tag, RefBoolean dynamic, StringBuffer sbType, boolean allowTwiceAttr) throws TemplateException {
+		String idLC=idOC.toLowerCase();
+		
+		if(args.contains(idLC) && !allowTwiceAttr) throw new TemplateException(cfml,"you can't use the same attribute ["+idOC+"] twice");
+		args.add(idLC);
 		
 		
-		if(tag==null) return id;
+		if(tag==null) return idOC;
 		int typeDef=tag.getAttributeType();
-		if("attributecollection".equals(id)){
-			dynamic.setValue(tag.getAttribute(id,true)==null);
+		if("attributecollection".equals(idLC)){
+			dynamic.setValue(tag.getAttribute(idLC,true)==null);
 			sbType.append("struct");
 		}
 		else if(typeDef==TagLibTag.ATTRIBUTE_TYPE_FIXED || typeDef==TagLibTag.ATTRIBUTE_TYPE_MIXED) {
-			TagLibTagAttr attr=tag.getAttribute(id,true);
+			TagLibTagAttr attr=tag.getAttribute(idLC,true);
 			if(attr==null) {
 				if(typeDef==TagLibTag.ATTRIBUTE_TYPE_FIXED) {
 					String names=tag.getAttributeNames();
 					if(StringUtil.isEmpty(names))
-						throw new TemplateException(cfml,"Attribute "+id+" is not allowed for tag "+tag.getFullName());
+						throw new TemplateException(cfml,"Attribute "+idOC+" is not allowed for tag "+tag.getFullName());
 					
 					throw new TemplateException(cfml,
-						"Attribute "+id+" is not allowed for statement "+tag.getName(),
+						"Attribute "+idOC+" is not allowed for statement "+tag.getName(),
 						"valid attribute names are ["+names+"]");
 				}
 				dynamic.setValue(true);
@@ -1994,7 +1997,7 @@ int pos=data.cfml.getPos();
 		else if(typeDef==TagLibTag.ATTRIBUTE_TYPE_DYNAMIC){
 			dynamic.setValue(true);
 		}
-		return id;
+		return idOC;
 	}
 	
 		

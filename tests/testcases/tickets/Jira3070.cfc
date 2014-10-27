@@ -4,7 +4,10 @@ component extends="org.railo.cfml.test.RailoTestCase"	{
 	//public function setUp(){}
 
 	public void function testCFM(){
+
 		http method="get" result="local.result" url="#createURL("Jira3070/index.cfm")#" addtoken="false";
+
+		//echo(result.filecontent);
 		assertEquals("",result.filecontent);
 	}
 

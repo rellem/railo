@@ -7,8 +7,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.regex.Pattern;
 
-import org.apache.commons.lang.SystemUtils;
-
 import railo.commons.io.SystemUtil;
 import railo.commons.lang.ParserString;
 import railo.commons.lang.StringUtil;
@@ -105,9 +103,14 @@ public class SQLUtil {
 		
 		// Java >= 1.6
 		if(SystemUtil.JAVA_VERSION>=SystemUtil.JAVA_VERSION_1_6) {
-			Blob blob = conn.createBlob();
-			blob.setBytes(1, Caster.toBinary(value));
-			return blob;
+			try {
+				Blob blob = conn.createBlob();
+				blob.setBytes(1, Caster.toBinary(value));
+				return blob;
+			}
+			catch(Throwable t){
+				return BlobImpl.toBlob(value);
+			}
 		}
 		
 		// Java < 1.6

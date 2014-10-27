@@ -3,8 +3,9 @@ package railo.transformer.bytecode.statement.tag;
 import railo.transformer.bytecode.expression.Expression;
 
 public final class Attribute {
-	
-	final String name;
+
+	final String nameOC;
+	final String nameLC;
 	final Expression value;
 	private final String type;
 	private final boolean dynamicType;
@@ -13,7 +14,8 @@ public final class Attribute {
 	
 	public Attribute(boolean dynamicType,String name, Expression value, String type) {
 		this.dynamicType = dynamicType;
-		this.name = name;
+		this.nameOC = name;
+		this.nameLC = name.toLowerCase();
 		this.value = value;
 		this.type = type;
 	}
@@ -30,7 +32,11 @@ public final class Attribute {
 	 * @return the name
 	 */
 	public String getName() {
-		return name;
+		return nameLC;
+	}
+	// TODO make this method obsolete
+	public String getNameOC() {
+		return nameOC;
 	}
 
 	/**
@@ -55,7 +61,7 @@ public final class Attribute {
 	}
 	
 	public String toString(){
-		return "name:"+this.name
+		return "name:"+this.nameOC
 		+";value:"+this.value
 		+";type:"+this.type
 		+";dynamicType:"+this.dynamicType

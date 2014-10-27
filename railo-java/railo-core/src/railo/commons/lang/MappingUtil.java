@@ -10,9 +10,14 @@ import railo.commons.io.res.filter.DirectoryResourceFilter;
 import railo.commons.io.res.filter.ExtensionResourceFilter;
 import railo.commons.io.res.filter.ResourceFilter;
 import railo.runtime.Mapping;
+import railo.runtime.MappingImpl;
+import railo.runtime.PageContext;
 import railo.runtime.PageSource;
 import railo.runtime.config.Config;
+import railo.runtime.config.ConfigWebUtil;
+import railo.runtime.engine.ThreadLocalPageContext;
 import railo.transformer.bytecode.util.ASMUtil;
+import railo.transformer.bytecode.util.SourceNameClassVisitor.SourceInfo;
 
 public class MappingUtil {
 	//private static final ResourceFilter EXT=new ExtensionResourceFilter(".cfc");
@@ -59,9 +64,9 @@ public class MappingUtil {
 					clazz=toClass(cl,entry.getName());
 					
 					if(clazz==null) continue;
-					Pair<String, String> nameAndPath = ASMUtil.getSourceNameAndPath(mapping.getConfig(),clazz,onlyCFC);
-					if(name.equalsIgnoreCase(nameAndPath.name)) {
-						PageSource ps = mapping.getPageSource(nameAndPath.value);
+					SourceInfo srcInf = ASMUtil.getSourceInfo(mapping.getConfig(),clazz,onlyCFC);
+					if(name.equalsIgnoreCase(srcInf.name)) {
+						PageSource ps = mapping.getPageSource(srcInf.relativePath);
 						//Page page = ((PageSourceImpl)ps).loadPage(pc,(Page)null);
 						return ps;
 					}
@@ -129,6 +134,46 @@ public class MappingUtil {
 			}
 		}
 		
+		return null;
+	}
+	
+	public static SourceInfo getMatch(PageContext pc, StackTraceElement trace) {
+		return getMatch(pc,null, trace);
+		
+	}
+
+	public static SourceInfo getMatch(Config config, StackTraceElement trace) {
+		return getMatch(null,config, trace);
+	}
+	
+	public static SourceInfo getMatch(PageContext pc,Config config, StackTraceElement trace) {
+		if(pc==null && config==null)
+			config=ThreadLocalPageContext.getConfig();
+		if(trace.getFileName()==null) return null;
+		
+		//PageContext pc = ThreadLocalPageContext.get();
+		Mapping[] mappings = pc!=null? ConfigWebUtil.getAllMappings(pc):ConfigWebUtil.getAllMappings(config);
+		if(pc!=null) config=pc.getConfig();
+		
+		Mapping mapping;
+		Class clazz;
+		for(int i=0;i<mappings.length;i++){
+			mapping=mappings[i];
+			//print.e("virtual:"+mapping.getVirtual()+"+"+trace.getClassName());
+			// look for the class in that mapping
+			clazz=((MappingImpl)mapping).loadClass(trace.getClassName());
+			if(clazz==null) continue;
+			
+			// classname is not distinct, because of that we must check class content
+			try {
+				SourceInfo si = ASMUtil.getSourceInfo(config, clazz, false);
+				if(si!=null && trace.getFileName()!=null && trace.getFileName().equals(si.absolutePath))
+					return si;
+			}
+			catch (IOException e) {}
+			
+			
+		}
 		return null;
 	}
 }

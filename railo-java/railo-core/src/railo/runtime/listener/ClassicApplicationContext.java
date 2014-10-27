@@ -25,7 +25,10 @@ import railo.runtime.rest.RestSettings;
 import railo.runtime.type.CustomType;
 import railo.runtime.type.UDF;
 import railo.runtime.type.dt.TimeSpan;
+import railo.runtime.type.scope.FormImpl;
 import railo.runtime.type.scope.Scope;
+import railo.runtime.type.scope.URLImpl;
+import railo.runtime.type.scope.UrlFormImpl;
 import railo.runtime.type.util.ArrayUtil;
 
 /**
@@ -600,11 +603,21 @@ public class ClassicApplicationContext extends ApplicationContextSupport {
 		return defaultCaches.get(type);
 	}
 
-	public void setSameFieldAsArray(int scope, boolean sameFieldAsArray) {
+	public void setSameFieldAsArray(PageContext pc,int scope, boolean sameFieldAsArray) {
+		
 		sameFieldAsArrays.put(scope, sameFieldAsArray);
+		
+		if(Scope.SCOPE_URL==scope)reinitScope(pc.urlScope(),this); 
+		else reinitScope(pc.formScope(),this);
 	}
 	
 	
+	public static void reinitScope(Scope scope,ApplicationContext ac) {
+		if(scope instanceof URLImpl ) ((URLImpl)scope).reinitialize(ac);
+		else if(scope instanceof FormImpl ) ((FormImpl)scope).reinitialize(ac);
+		if(scope instanceof UrlFormImpl ) ((UrlFormImpl)scope).reinitialize(ac);
+	}
+
 	@Override
 	public boolean getSameFieldAsArray(int scope) {
 		Boolean b= sameFieldAsArrays.get(scope);

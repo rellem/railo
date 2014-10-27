@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -31,8 +30,8 @@ import railo.runtime.listener.NoneAppListener;
 import railo.runtime.net.http.ReqRspUtil;
 import railo.runtime.security.SecurityManager;
 import railo.runtime.type.Collection.Key;
-import railo.runtime.type.util.ArrayUtil;
 import railo.runtime.type.Struct;
+import railo.runtime.type.util.ArrayUtil;
 
 
 /**
@@ -299,10 +298,11 @@ public final class ConfigWebUtil {
     	}
 	}
 
-    public static void checkPassword(ConfigImpl config, String type,String password) throws SecurityException {
+    public static Password checkPassword(ConfigImpl config, String type,String password) throws SecurityException {
     	if(!config.hasPassword())
             throw new SecurityException("can't access, no password is defined");
-        if(!config.isPasswordEqual(password,true)){
+    	Password pw = config.isPasswordEqual(password,true);
+        if(pw==null){
         	if(StringUtil.isEmpty(password)){
         		if(type==null)
         			throw new SecurityException("Access is protected",
@@ -312,6 +312,7 @@ public final class ConfigWebUtil {
         	}
             throw new SecurityException("No access, password is invalid");
         }
+        return pw;
     }
     
     public static String createMD5FromResource(Resource resource) throws IOException {
@@ -409,11 +410,12 @@ public final class ConfigWebUtil {
 		return list.toArray(new Mapping[list.size()]);
 	}
 	
-	public static Mapping[] getAllMappings(ConfigWeb cw) {
+	public static Mapping[] getAllMappings(Config c) {
+		
 		List<Mapping> list=new ArrayList<Mapping>();
-		getAllMappings(list,cw.getMappings());
-		getAllMappings(list,cw.getCustomTagMappings());
-		getAllMappings(list,cw.getComponentMappings());
+		getAllMappings(list,c.getMappings());
+		getAllMappings(list,c.getCustomTagMappings());
+		getAllMappings(list,c.getComponentMappings());
 		return list.toArray(new Mapping[list.size()]);
 	}
 

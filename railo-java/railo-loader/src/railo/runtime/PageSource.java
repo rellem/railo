@@ -33,13 +33,13 @@ public interface PageSource extends SourceFile {
     
     /**
      * returns the ralpath without the mapping
-     * @return Returns the realpath.
+     * @return Returns the relpath.
      */
     public abstract String getRealpath();
 
     /**
-     * Returns the full name (mapping/realpath).
-     * @return mapping/realpath
+     * Returns the full name (mapping/relpath).
+     * @return mapping/relpath
      */
     public abstract String getFullRealpath();
 
@@ -100,10 +100,10 @@ public interface PageSource extends SourceFile {
 
     /**
      * get an new Pagesoure from ralpath
-     * @param realPath
+     * @param relPath
      * @return new Pagesource
      */
-    public abstract PageSource getRealPage(String realPath);
+    public abstract PageSource getRealPage(String relPath);
 
     /**
      * sets time last accessed page

@@ -11,7 +11,7 @@ import railo.commons.io.res.Resource;
 public interface SourceFile extends Serializable {
 
     /**
-	 * return file object, based on physical path and realpath
+	 * return file object, based on physical path and relpath
 	 * @return file Object
 	 */
 	public Resource getPhyscalFile();
